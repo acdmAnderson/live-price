@@ -8,8 +8,9 @@ O projeto existe para praticar engenharia de software em condições próximas �
 
 ## Objetivos de aprendizagem
 
-- Projetar e operar sistemas distribuídos localmente em Kubernetes.
-- Usar Mastra, agentes, tool calling, RAG e avaliações de IA em um fluxo de negócio concreto.
+- Usar Mastra, agentes, tool calling, RAG e avaliações de IA em um fluxo de negócio concreto. Este é o objetivo principal.
+- Operar IA em produção simulada: custo, latência, tracing, revisão humana e segurança contra prompt injection.
+- Projetar e operar sistemas distribuídos localmente em Kubernetes. Objetivo secundário, com escopo enxuto.
 - Trabalhar com comunicação assíncrona, consistência eventual, idempotência, retries e dead-letter queues.
 - Investigar desempenho de banco de dados sob carga por meio de métricas e experimentos.
 - Evoluir um monólito modular para serviços separados quando houver pressão medida para isso.
@@ -18,7 +19,7 @@ O projeto existe para praticar engenharia de software em condições próximas �
 
 ## Princípios
 
-1. **Local primeiro.** O sistema roda em `kind` ou `k3d` e usa containers reproduzíveis. Cloud entra em uma etapa futura, como extensão deliberada do laboratório.
+1. **Local primeiro.** O sistema roda com Docker Compose no início e passa para `kind` ou `k3d` no ciclo 9. Cloud entra em uma etapa futura, como extensão deliberada do laboratório.
 2. **Começar estreito.** A primeira versão trabalha com uma única categoria de supermercado, poucos estabelecimentos e dados sintéticos.
 3. **Monólito modular antes de microsserviços.** Serviços são extraídos por uma necessidade demonstrada por métricas, falha ou ritmo de mudança.
 4. **IA não é fonte de verdade.** Regras objetivas continuam determinísticas. Agentes lidam com ambiguidade e sempre retornam resultado estruturado, evidências e justificativa.
@@ -104,18 +105,20 @@ flowchart LR
 
 ## Stack inicial
 
-| Necessidade | Escolha inicial |
-| --- | --- |
-| Linguagem e backend | TypeScript com Fastify ou NestJS |
-| IA | Mastra com provider abstraído; Ollama local quando viável |
-| Banco transacional e vetorial inicial | PostgreSQL com `pgvector` |
-| Cache e jobs simples | Redis |
-| Eventos | NATS JetStream |
-| Arquivos | MinIO |
-| Interface operacional | React |
-| Kubernetes local | `kind` ou `k3d` |
-| Deploy e desenvolvimento local | Helm com Tilt ou Skaffold |
-| Observabilidade | OpenTelemetry, Prometheus, Grafana, Loki e Tempo |
+| Necessidade | Escolha inicial | Entra no ciclo |
+| --- | --- | --- |
+| Linguagem e backend | TypeScript com Fastify ou NestJS | 1 |
+| IA | Mastra com provider abstraído; Ollama local quando viável | 1 |
+| Banco transacional e vetorial inicial | PostgreSQL com `pgvector` | 1 |
+| Ambiente local | Docker Compose | 1 |
+| Avaliações de IA | Scripts próprios ou ferramenta de evals, com dataset versionado | 2 |
+| Observabilidade de IA | OpenTelemetry com traces das chamadas ao LLM | 6 |
+| Interface operacional | React, mínima | 6 |
+| Cache e jobs simples | Redis | 8 |
+| Eventos | NATS JetStream | 8 |
+| Kubernetes local | `kind` ou `k3d` com Helm | 9 |
+| Arquivos | MinIO | quando houver necessidade |
+| Métricas e logs | Prometheus, Grafana, Loki e Tempo | 11 |
 
 Tecnologias como Qdrant, OpenSearch, ClickHouse, Redpanda/Kafka e outros bancos devem ser adotadas somente após um experimento demonstrar uma limitação relevante da solução atual.
 
@@ -123,21 +126,37 @@ Tecnologias como Qdrant, OpenSearch, ClickHouse, Redpanda/Kafka e outros bancos 
 
 Cada ciclo termina com uma demonstração, uma decisão registrada e ao menos um cenário de falha ou dado ruim reproduzível.
 
-| Ciclo | Entrega | Foco |
-| --- | --- | --- |
-| 0. Fundação | Visão de produto, linguagem ubíqua, eventos iniciais, ADRs e critérios de sucesso | DDD, produto e arquitetura |
-| 1. Ambiente local | Monorepo, containers, Kubernetes local, Postgres, Redis e serviço mínimo | Kubernetes e DX |
-| 2. Core com IA | Agente Mastra normaliza preços malformados e retorna decisão estruturada | Tool calling e guardrails |
-| 3. Catálogo e RAG | Catálogo, sinônimos, regras e documentos recuperáveis | Embeddings, RAG e avaliações |
-| 4. Ingestão por eventos | Outbox, idempotência, retries, DLQ e rastreamento | Sistemas orientados a eventos |
-| 5. Confiança comunitária | Confirmações, contestações, evidências, expiração e score explicável | Domínio, fraude e produto |
-| 6. Painel operacional | Investigação de preços, decisões do agente e falhas | React e UX operacional |
-| 7. Tempo real | SSE ou WebSocket, alertas e propagação de mudanças | Consistência eventual e fan-out |
-| 8. Escala de dados | Gerador de massa, índices, planos de consulta, partições e cache | PostgreSQL e performance |
-| 9. Evolução arquitetural | Extração de um serviço motivada por evidência e contratos versionados | Microsserviços e migração |
-| 10. Resiliência | Falhas de banco, fila, rede e LLM; SLOs, alertas e postmortems | SRE e caos controlado |
-| 11. Segurança e custo | RBAC, auditoria, isolamento, rate limits e orçamento fictício | Segurança e trade-offs |
-| 12. Capstone FDE | Cliente fictício, integração legada, incidente e mudança de requisito | Entrega ponta a ponta |
+O roadmap tem três trilhas. A trilha de IA é o foco do estudo. A trilha FDE entra cedo. A trilha de plataforma é conhecida, então fica enxuta e vem depois.
+
+### Trilha de IA (foco principal)
+
+| Ciclo | Entrega | Foco | Tempo máximo |
+| --- | --- | --- | --- |
+| 0. Fundação | Visão de produto, linguagem ubíqua, contratos dos primeiros eventos e ADRs | DDD e produto | 1 semana |
+| 1. Core com IA | Agente Mastra normaliza preços malformados e retorna decisão estruturada. Roda em processo simples, com Postgres no Docker Compose | Tool calling, saída estruturada e guardrails | 2 semanas |
+| 2. Avaliações de IA | Dataset rotulado, métricas, comparação de modelos e versões de prompt, execução automática | Evals e regressão de qualidade | 2 semanas |
+| 3. Catálogo e RAG | Catálogo, sinônimos, regras e documentos recuperáveis, medidos pelos evals do ciclo 2 | Embeddings, chunking e recuperação | 2 semanas |
+
+### Trilha FDE (entra cedo)
+
+| Ciclo | Entrega | Foco | Tempo máximo |
+| --- | --- | --- | --- |
+| 4. Mini-capstone FDE | Parceiro fictício envia CSV sujo. Depois chega uma mudança de requisito. Entrega ponta a ponta com o agente | Descoberta, integração e comunicação de decisões | 1 a 2 semanas |
+| 5. Confiança comunitária | Confirmações, contestações, evidências, expiração e score explicável. O agente propõe, a regra decide | Domínio, fraude e explicabilidade | 2 semanas |
+| 6. IA em operação | Tracing de cada decisão, custo e latência por chamada, fila de revisão humana, painel operacional mínimo | Observabilidade de IA e humano no ciclo | 2 semanas |
+| 7. Segurança de IA | Prompt injection em descrições de produto, vazamento de dados, limites de custo, auditoria das decisões | Segurança e custo de LLM | 1 a 2 semanas |
+
+### Trilha de plataforma (enxuta, depois da IA)
+
+| Ciclo | Entrega | Foco | Tempo máximo |
+| --- | --- | --- | --- |
+| 8. Ingestão por eventos | Outbox, idempotência, retries, DLQ e rastreamento | Eventos | 1 semana |
+| 9. Kubernetes local | Deploy com `kind` ou `k3d` e Helm, sem otimizar | Deploy | 1 semana |
+| 10. Tempo real e escala | SSE ou WebSocket, alertas, gerador de massa e planos de consulta | Fan-out e PostgreSQL | 2 semanas |
+| 11. Resiliência | Falhas de banco, fila, rede e LLM. Fallback entre modelos, SLOs e postmortems | SRE aplicado à IA | 1 semana |
+| 12. Capstone FDE | Cliente fictício, integração legada, incidente e mudança de requisito | Entrega ponta a ponta | 2 semanas |
+
+Se um ciclo passar do tempo máximo, pare. Registre o que aprendeu em um ADR e siga para o próximo.
 
 ## Avaliação de IA
 
@@ -190,4 +209,6 @@ Iniciar o Ciclo 0 com quatro artefatos:
 1. visão de produto de uma página;
 2. linguagem ubíqua e modelo de domínio inicial;
 3. contratos dos primeiros eventos;
-4. ADR sobre monólito modular, Kubernetes local e provider de LLM.
+4. ADR sobre monólito modular, Docker Compose primeiro e provider de LLM.
+
+Depois, vá direto ao Ciclo 1. Kubernetes só entra no Ciclo 9.
